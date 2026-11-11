@@ -1,0 +1,7 @@
+{
+  "IpApiCardapio": "https://179.191.110.87:45003/api/v1/",
+  "BaseImagens": "imagens/",
+  "SemSenha": "0",
+  "TempoExpira": 14400,
+  "ExtProd": "jpg"
+}
