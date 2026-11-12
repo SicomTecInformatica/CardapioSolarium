@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -38,6 +39,7 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
   final _repetindo = <int>{};
   bool _avisoExpirado = false;
   bool _marcacaoAgendada = false;
+  bool _rolandoParaChip = false;
 
   static const _alturaComChips = 124.0;
   static const _alturaSemChips = 72.0;
@@ -299,7 +301,7 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
   }
 
   void _marcarSecaoVisivel() {
-    if (_buscando || !_scroll.hasClients) return;
+    if (_rolandoParaChip || _buscando || !_scroll.hasClients) return;
     final topos = _toposDasSecoes();
     final linha = _alturaDe(_mostrarChips(secoesVisiveis(_secoes))) + 4;
     final indice = secaoVisivel(topos, linha, atual: _chip);
@@ -323,21 +325,30 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
   }
 
   void _rolarPara(int indice) {
-    final scrollBox =
-        _listaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (!_scroll.hasClients) return;
     final chave = indice < _chaves.length ? _chaves[indice] : null;
-    final box = chave?.currentContext?.findRenderObject() as RenderBox?;
-    if (scrollBox == null || box == null || !_scroll.hasClients) return;
-    final dy = box.localToGlobal(Offset.zero, ancestor: scrollBox).dy;
-    final altura = _alturaDe(_mostrarChips(secoesVisiveis(_secoes)));
-    final alvo = (_scroll.offset + dy - altura)
+    final box = chave?.currentContext?.findRenderObject();
+    if (box == null || !box.attached) return;
+    final viewport = RenderAbstractViewport.maybeOf(box);
+    if (viewport == null) return;
+    // O alinhamento 0 já encosta o título logo abaixo da faixa fixa.
+    final alvo = viewport
+        .getOffsetToReveal(box, 0)
+        .offset
         .clamp(0.0, _scroll.position.maxScrollExtent);
+    _rolandoParaChip = true;
     setState(() => _chip = indice);
-    _scroll.animateTo(
-      alvo,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOut,
-    );
+    _scroll
+        .animateTo(
+          alvo,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+        )
+        .whenComplete(() {
+      if (!mounted) return;
+      _rolandoParaChip = false;
+      _marcarSecaoVisivel();
+    });
   }
 
   @override
@@ -388,10 +399,19 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
       return _ErroRede(onRepetir: () => _carregar(forcar: true));
     }
     final vazio = visiveis.isEmpty;
-    return CustomScrollView(
-      key: _listaKey,
-      controller: _scroll,
-      slivers: [
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (_rolandoParaChip &&
+            notification is ScrollStartNotification &&
+            notification.dragDetails != null) {
+          _rolandoParaChip = false;
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        key: _listaKey,
+        controller: _scroll,
+        slivers: [
         SliverPersistentHeader(
           pinned: true,
           delegate: _CabecalhoFixo(
@@ -450,6 +470,7 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 88)),
       ],
+      ),
     );
   }
 
@@ -673,14 +694,16 @@ class _BuscaEChipsState extends State<_BuscaEChips> {
     if (contexto == null) return;
     final caixa = contexto.findRenderObject() as RenderBox?;
     final rolagem = Scrollable.maybeOf(contexto);
-    final viewport = rolagem?.context.findRenderObject() as RenderBox?;
-    if (caixa == null || !caixa.hasSize || viewport == null) return;
+    if (caixa == null || !caixa.hasSize || rolagem == null) return;
+    if (rolagem.position.axis != Axis.horizontal) return;
+    final viewport = rolagem.context.findRenderObject() as RenderBox?;
+    if (viewport == null || !viewport.hasSize) return;
     final origem = caixa.localToGlobal(Offset.zero, ancestor: viewport);
     final fim = origem.dx + caixa.size.width;
     final cabeNaFaixa = origem.dx >= 0 && fim <= viewport.size.width + 1;
     if (cabeNaFaixa) return;
-    Scrollable.ensureVisible(
-      contexto,
+    rolagem.position.ensureVisible(
+      caixa,
       alignment: 0.5,
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOut,
@@ -743,6 +766,7 @@ class _BuscaEChipsState extends State<_BuscaEChips> {
             SizedBox(
               height: 44,
               child: ListView.separated(
+                key: const Key('faixa-grupos'),
                 scrollDirection: Axis.horizontal,
                 itemCount: secoes.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),

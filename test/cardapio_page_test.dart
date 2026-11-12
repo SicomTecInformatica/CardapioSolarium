@@ -129,6 +129,40 @@ void main() {
     expect(find.text('RISOTO'), findsOneWidget);
   });
 
+  testWidgets('toque no terceiro grupo encosta o título na faixa',
+      (tester) async {
+    await abrir(
+      tester,
+      api: _ApiCardapio(bebidas: 6, pratos: 6, doces: 8),
+    );
+    await tester.tap(find.byKey(const Key('chip-3')));
+    await tester.pumpAndSettle();
+
+    final lista = tester.renderObject<RenderBox>(find.byType(CustomScrollView));
+    final titulo = tester.renderObject<RenderBox>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            widget.data == 'Doces' &&
+            widget.style?.fontSize == 18,
+      ),
+    );
+    final topo = titulo.localToGlobal(Offset.zero, ancestor: lista).dy;
+    expect(topo, greaterThan(120));
+    expect(topo, lessThan(160));
+
+    final ultimoPrato = tester.renderObject<RenderBox>(find.text('MASSA 5'));
+    final fimPrato = ultimoPrato
+        .localToGlobal(Offset(0, ultimoPrato.size.height), ancestor: lista)
+        .dy;
+    expect(fimPrato, lessThanOrEqualTo(130));
+
+    final material = tester
+        .element(find.byKey(const Key('chip-3')))
+        .findAncestorWidgetOfExactType<Material>()!;
+    expect(material.color, isNot(Colors.white));
+  });
+
   testWidgets('rolar a lista marca o grupo que está na tela', (tester) async {
     await abrir(tester, api: _ApiCardapio(bebidas: 4, pratos: 14));
     final controller = tester
@@ -147,6 +181,31 @@ void main() {
         .element(find.byKey(const Key('chip-2')))
         .findAncestorWidgetOfExactType<Material>()!;
     expect(material.color, isNot(Colors.white));
+  });
+
+  testWidgets('faixa estreita não devolve a lista ao primeiro grupo',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await abrir(
+      tester,
+      api: _ApiCardapio(bebidas: 10, pratos: 6, muitosGrupos: true),
+    );
+    expect(find.byKey(const Key('chip-1')), findsOneWidget);
+    final controller = tester
+        .widget<CustomScrollView>(find.byType(CustomScrollView))
+        .controller!;
+    final maximo = controller.position.maxScrollExtent;
+    for (var offset = 0.0; offset < maximo; offset += 180) {
+      controller.jumpTo(offset);
+      await tester.pump();
+    }
+    controller.jumpTo(maximo);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(controller.offset, greaterThan(maximo * 0.8));
   });
 
   testWidgets('falha de um grupo oferece repetir só dele', (tester) async {
@@ -695,10 +754,17 @@ Future<void> _aposEnvio(WidgetTester tester) async {
 }
 
 class _ApiCardapio implements HttpClientAdapter {
-  _ApiCardapio({this.bebidas = 1, this.pratos = 1});
+  _ApiCardapio({
+    this.bebidas = 1,
+    this.pratos = 1,
+    this.doces = 0,
+    this.muitosGrupos = false,
+  });
 
   int bebidas;
   int pratos;
+  int doces;
+  bool muitosGrupos;
   bool gruposFalham = false;
   bool observacoesFalham = false;
   String observacoesCorpo = '[]';
@@ -768,12 +834,29 @@ class _ApiCardapio implements HttpClientAdapter {
         ];
         return '[${itens.join(',')}]';
       }
+      if (codigo == '3' && doces > 0) {
+        final itens = [
+          for (var i = 0; i < doces; i++)
+            '{"codigo":${30 + i},"descricao":"${i == 0 ? 'PUDIM' : 'BOLO $i'}","preco":12,"ingredientes":"Doce"}',
+        ];
+        return '[${itens.join(',')}]';
+      }
+      if (muitosGrupos) {
+        return '[{"codigo":${codigo}0,"descricao":"ITEM $codigo","preco":10,"ingredientes":""}]';
+      }
       return 'Grupo não encontrado.';
     }
     if (path.contains('/setor/')) {
       return '{"descricaoSetor":"Amani"}';
     }
     if (path.contains('Grupo/')) {
+      if (muitosGrupos) {
+        return '[{"codigoGrupo":1,"descricaoGrupo":"Bebidas geladas do clube"},'
+            '{"codigoGrupo":2,"descricaoGrupo":"Pratos principais do almoço"},'
+            '{"codigoGrupo":4,"descricaoGrupo":"Sobremesas e doces da casa"},'
+            '{"codigoGrupo":5,"descricaoGrupo":"Porções para compartilhar"},'
+            '{"codigoGrupo":6,"descricaoGrupo":"Drinks e coquetéis especiais"}]';
+      }
       return '[{"codigoGrupo":1,"descricaoGrupo":"Bebidas"},'
           '{"codigoGrupo":2,"descricaoGrupo":"Pratos"},'
           '{"codigoGrupo":3,"descricaoGrupo":"Doces"}]';
