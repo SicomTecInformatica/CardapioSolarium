@@ -143,8 +143,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('abrir-conta')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ir-pagamento')));
-    await tester.pumpAndSettle();
+    await _abrirNota(tester);
 
     expect(_texto(tester, 'valor-mesa'), '70');
     expect(_texto(tester, 'valor-abertura'), '10/11/2026 14:30');
@@ -228,8 +227,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('abrir-conta')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ir-pagamento')));
-    await tester.pumpAndSettle();
+    await _abrirNota(tester);
 
     expect(find.text('Taxa de serviço (5%)'), findsOneWidget);
     expect(_texto(tester, 'valor-taxa'), reaisNaTela(5));
@@ -249,8 +247,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('abrir-conta')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ir-pagamento')));
-    await tester.pumpAndSettle();
+    await _abrirNota(tester);
 
     await tester.tap(find.byKey(const Key('botao-pagar')));
     await tester.pumpAndSettle();
@@ -288,8 +285,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('abrir-conta')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ir-pagamento')));
-    await tester.pumpAndSettle();
+    await _abrirNota(tester);
     await tester.tap(find.byKey(const Key('botao-pagar')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sim'));
@@ -312,8 +308,7 @@ void main() {
     await abrir(tester, api: api, semSenha: '1');
     await tester.tap(find.byKey(const Key('abrir-conta')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ir-pagamento')));
-    await tester.pumpAndSettle();
+    await _abrirNota(tester);
     await tester.tap(find.byKey(const Key('botao-pagar')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sim'));
@@ -339,8 +334,7 @@ void main() {
           .onPressed,
       isNotNull,
     );
-    await tester.tap(find.byKey(const Key('ir-pagamento')));
-    await tester.pumpAndSettle();
+    await _abrirNota(tester);
     await tester.tap(find.byKey(const Key('botao-pagar')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sim'));
@@ -360,8 +354,7 @@ void main() {
     await abrir(tester, api: api, semSenha: '1');
     await tester.tap(find.byKey(const Key('abrir-conta')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ir-pagamento')));
-    await tester.pumpAndSettle();
+    await _abrirNota(tester);
     await tester.tap(find.byKey(const Key('botao-pagar')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sim'));
@@ -402,8 +395,7 @@ void main() {
     await abrir(tester, api: api, semSenha: '1', relogio: () => momento);
     await tester.tap(find.byKey(const Key('abrir-conta')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('ir-pagamento')));
-    await tester.pumpAndSettle();
+    await _abrirNota(tester);
     momento = agora.add(const Duration(hours: 5));
     final antes = api.envios;
     await tester.tap(find.byKey(const Key('botao-pagar')));
@@ -414,6 +406,64 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Acessar'), findsOneWidget);
   });
+
+  testWidgets('só Conta Clube abre a nota; o resto chama o atendente',
+      (tester) async {
+    final api = _Api();
+    await abrir(tester, api: api);
+    await tester.tap(find.byKey(const Key('abrir-conta')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('ir-pagamento')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pagar pelo aplicativo'), findsOneWidget);
+    expect(find.text(formaContaClube), findsOneWidget);
+    expect(find.text('Chamar Atendente'), findsOneWidget);
+    expect(find.text('Outras Formas de Pagamento'), findsOneWidget);
+    for (final forma in formasChamarAtendente) {
+      expect(find.text(forma), findsOneWidget);
+    }
+    expect(find.text('Total consumido'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('forma-pix')));
+    await tester.pumpAndSettle();
+    expect(find.text(avisoChamarAtendente('Pix')), findsOneWidget);
+    expect(api.envios, 0);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(find.text('Total consumido'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('forma-dinheiro')));
+    await tester.pumpAndSettle();
+    expect(find.text(avisoChamarAtendente('Dinheiro')), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('forma-credito')));
+    await tester.pumpAndSettle();
+    expect(find.text(avisoChamarAtendente('Crédito')), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('forma-debito')));
+    await tester.pumpAndSettle();
+    expect(find.text(avisoChamarAtendente('Débito')), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(api.envios, 0);
+    await tester.tap(find.byKey(const Key('forma-conta-clube')));
+    await tester.pumpAndSettle();
+    expect(find.text('Total consumido'), findsOneWidget);
+    expect(find.byKey(const Key('botao-pagar')), findsOneWidget);
+  });
+}
+
+Future<void> _abrirNota(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('ir-pagamento')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('forma-conta-clube')));
+  await tester.pumpAndSettle();
 }
 
 String _texto(WidgetTester tester, String chave) {

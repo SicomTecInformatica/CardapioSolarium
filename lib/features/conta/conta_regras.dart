@@ -161,6 +161,14 @@ String perguntaPagamento(double total) {
   return 'Enviar o pagamento de ${reaisNaTela(total)}?';
 }
 
+const formaContaClube = 'Conta Clube';
+
+const formasChamarAtendente = ['Pix', 'Dinheiro', 'Crédito', 'Débito'];
+
+String avisoChamarAtendente(String forma) {
+  return 'Chame o atendente para pagar com $forma.';
+}
+
 PassoConfirmar passoConfirmar({
   required String semSenha,
   required bool senhaVisivel,

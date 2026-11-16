@@ -142,6 +142,8 @@ void main() {
       lerRespostaMesac('Error: Status 200 Mesa ocupada').texto,
       'Mesa ocupada',
     );
+    expect(avisoChamarAtendente('Pix'), 'Chame o atendente para pagar com Pix.');
+    expect(formasChamarAtendente, ['Pix', 'Dinheiro', 'Crédito', 'Débito']);
     expect(msgPagamentoEnviado, 'Pagamento enviado');
     expect(msgNaoEnviouPagamento, 'Não foi possível enviar o pagamento.');
     expect(msgNaoLeuMesa, 'Não foi possível ler a mesa.');

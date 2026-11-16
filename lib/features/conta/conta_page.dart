@@ -123,7 +123,7 @@ class _ContaPageState extends ConsumerState<ContaPage> {
         _RodapeConta(
           fechada: _fechada,
           rodape: _lista.itens.isEmpty ? null : rodapeConta(soma),
-          onPagar: () => context.push('/conta/pagamento'),
+          onPagar: () => context.push('/conta/formas'),
         ),
       ],
     );

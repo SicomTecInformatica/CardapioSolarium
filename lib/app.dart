@@ -7,6 +7,7 @@ import 'features/acesso/acesso_page.dart';
 import 'features/cardapio/cardapio_page.dart';
 import 'features/cardapio/pedido_page.dart';
 import 'features/conta/conta_page.dart';
+import 'features/conta/formas_pagamento_page.dart';
 import 'features/conta/pagamento_page.dart';
 
 class _AtualizaRota extends ChangeNotifier {
@@ -51,6 +52,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/conta',
         builder: (context, state) => const ContaPage(),
+      ),
+      GoRoute(
+        path: '/conta/formas',
+        builder: (context, state) => const FormasPagamentoPage(),
       ),
       GoRoute(
         path: '/conta/pagamento',
