@@ -87,19 +87,59 @@ void main() {
     expect(find.text('Mineral'), findsOneWidget);
     expect(find.textContaining('4,00'), findsOneWidget);
     expect(find.text('Doces'), findsNothing);
+    expect(find.byKey(const Key('adicionar-1-10')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('adicionar-1-10')));
+    final nome = tester.widget<Text>(find.text('ÁGUA'));
+    expect(nome.style?.fontWeight, FontWeight.w700);
+    final detalhe = tester.widget<Text>(find.text('Mineral'));
+    expect(detalhe.style?.fontWeight, isNull);
+    expect(detalhe.maxLines, 3);
+    expect(detalhe.style?.fontSize, 13);
+    expect(detalhe.style?.color, const Color(0xFF6B6B6B));
+    expect(find.text('Ver mais'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('produto-1-10')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirmar-produto')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('Adicionado'), findsOneWidget);
+    expect(find.text(msgAdicionadoPedido), findsOneWidget);
     expect(find.textContaining('1 item'), findsOneWidget);
     expect(find.textContaining('4,00'), findsWidgets);
+  });
 
-    await tester.tap(find.text('Desfazer'));
+  testWidgets('descrição longa abre com ver mais e volta com ver menos',
+      (tester) async {
+    const longa = 'Linha um da bebida com bastante texto para ocupar espaco. '
+        'Linha dois continua o detalhe do produto sem cortar o sentido. '
+        'Linha tres ainda cabe no limite visivel do card. '
+        'Linha quatro so aparece depois do ver mais.';
+    await abrir(
+      tester,
+      api: _ApiCardapio()..ingredientesBebida = longa,
+    );
+
+    expect(find.text('Ver mais'), findsOneWidget);
+    expect(find.text('Ver menos'), findsNothing);
+    expect(tester.widget<Text>(find.text(longa)).maxLines, 3);
+    expect(
+      tester.widget<Text>(find.text('Ver mais')).style?.fontSize,
+      12,
+    );
+
+    await tester.tap(find.text('Ver mais'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byKey(const Key('ver-pedido')), findsNothing);
+
+    expect(find.byKey(const Key('confirmar-produto')), findsNothing);
+    expect(find.text('Ver menos'), findsOneWidget);
+    expect(tester.widget<Text>(find.text(longa)).maxLines, isNull);
+
+    await tester.tap(find.text('Ver menos'));
+    await tester.pump();
+
+    expect(find.text('Ver mais'), findsOneWidget);
+    expect(tester.widget<Text>(find.text(longa)).maxLines, 3);
   });
 
   testWidgets('busca agua acha ÁGUA e esconde os chips', (tester) async {
@@ -247,7 +287,9 @@ void main() {
       );
     }
     await tester.pump();
-    await tester.tap(find.byKey(const Key('adicionar-1-10')));
+    await tester.tap(find.byKey(const Key('produto-1-10')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirmar-produto')));
     await tester.pump();
     expect(find.text(msgLimiteItens), findsOneWidget);
     expect(container.read(appSessionProvider).carrinho, hasLength(25));
@@ -324,14 +366,8 @@ void main() {
     expect(find.text('ÁGUA'), findsOneWidget);
   });
 
-  testWidgets('o card abre o produto e o mais não abre', (tester) async {
+  testWidgets('o card abre a tela de adicionar', (tester) async {
     final container = await abrir(tester, api: _ApiCardapio());
-    await tester.tap(find.byKey(const Key('adicionar-1-10')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byKey(const Key('confirmar-produto')), findsNothing);
-    expect(find.text('Adicionado'), findsOneWidget);
-
     await tester.tap(find.byKey(const Key('produto-1-10')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('confirmar-produto')), findsOneWidget);
@@ -356,28 +392,28 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text(msgAdicionadoPedido), findsOneWidget);
     expect(container.read(appSessionProvider).carrinho, hasLength(1));
-    expect(container.read(appSessionProvider).carrinho.single.quantidade, 3);
+    expect(container.read(appSessionProvider).carrinho.single.quantidade, 2);
   });
 
-  testWidgets('dois mais do mesmo produto viram uma linha e desfazer volta um',
+  testWidgets('duas inclusões do mesmo produto viram uma linha',
       (tester) async {
     final container = await abrir(tester, api: _ApiCardapio());
-    await tester.tap(find.byKey(const Key('adicionar-1-10')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.byKey(const Key('adicionar-1-10')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+
+    Future<void> incluir() async {
+      await tester.tap(find.byKey(const Key('produto-1-10')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirmar-produto')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    await incluir();
+    await incluir();
 
     final linhas = container.read(appSessionProvider).carrinho;
     expect(linhas, hasLength(1));
     expect(linhas.single.quantidade, 2);
     expect(find.textContaining('2 itens'), findsOneWidget);
-
-    await tester.tap(find.text('Desfazer'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(container.read(appSessionProvider).carrinho.single.quantidade, 1);
   });
 
   testWidgets('chip de observação entra na linha e o grupo é buscado uma vez',
@@ -765,6 +801,7 @@ class _ApiCardapio implements HttpClientAdapter {
   int pratos;
   int doces;
   bool muitosGrupos;
+  String ingredientesBebida = 'Mineral';
   bool gruposFalham = false;
   bool observacoesFalham = false;
   String observacoesCorpo = '[]';
@@ -823,7 +860,7 @@ class _ApiCardapio implements HttpClientAdapter {
       if (codigo == '1') {
         final itens = [
           for (var i = 0; i < bebidas; i++)
-            '{"codigo":${10 + i},"descricao":"${i == 0 ? 'ÁGUA' : 'SUCO $i'}","preco":4,"ingredientes":"Mineral"}',
+            '{"codigo":${10 + i},"descricao":"${i == 0 ? 'ÁGUA' : 'SUCO $i'}","preco":4,"ingredientes":"$ingredientesBebida"}',
         ];
         return '[${itens.join(',')}]';
       }

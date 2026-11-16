@@ -241,32 +241,6 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
     await encerrarSessaoExpirada(context, ref);
   }
 
-  Future<void> _adicionar(Produto produto) async {
-    final antes = List<CartLine>.of(ref.read(appSessionProvider).carrinho);
-    final resultado = fundirNoCarrinho(
-      linhas: antes,
-      codigo: produto.codigo,
-      descricao: produto.descricao,
-      valorUnitario: produto.preco,
-      quantidade: 1,
-      observacoes: const [],
-    );
-    if (!resultado.aceita) {
-      _avisar(msgLimiteItens);
-      return;
-    }
-    await ref
-        .read(appSessionProvider.notifier)
-        .substituirCarrinho(resultado.linhas);
-    if (!mounted) return;
-    _avisar(
-      'Adicionado',
-      desfazer: () {
-        ref.read(appSessionProvider.notifier).substituirCarrinho(antes);
-      },
-    );
-  }
-
   Future<void> _abrir(Produto produto, int codigoGrupo) async {
     final incluiu = await abrirProduto(
       context,
@@ -277,17 +251,10 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
     _avisar(msgAdicionadoPedido);
   }
 
-  void _avisar(String texto, {VoidCallback? desfazer}) {
+  void _avisar(String texto) {
     final aviso = ScaffoldMessenger.of(context);
     aviso.removeCurrentSnackBar();
-    aviso.showSnackBar(
-      SnackBar(
-        content: Text(texto),
-        action: desfazer == null
-            ? null
-            : SnackBarAction(label: 'Desfazer', onPressed: desfazer),
-      ),
-    );
+    aviso.showSnackBar(SnackBar(content: Text(texto)));
   }
 
   void _aoRolar() {
@@ -456,7 +423,6 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
                     _CardProduto(
                       produto: item.produto,
                       codigoGrupo: item.codigoGrupo,
-                      onAdicionar: () => _adicionar(item.produto),
                       onAbrir: () => _abrir(item.produto, item.codigoGrupo),
                     ),
                   ],
@@ -525,7 +491,6 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
               return _CardProduto(
                 produto: produto,
                 codigoGrupo: secao.codigoGrupo,
-                onAdicionar: () => _adicionar(produto),
                 onAbrir: () => _abrir(produto, secao.codigoGrupo),
               );
             },
@@ -812,113 +777,154 @@ class _BuscaEChipsState extends State<_BuscaEChips> {
 class _CardProduto extends ConsumerWidget {
   final Produto produto;
   final int codigoGrupo;
-  final VoidCallback onAdicionar;
   final VoidCallback onAbrir;
 
   const _CardProduto({
     required this.produto,
     required this.codigoGrupo,
-    required this.onAdicionar,
     required this.onAbrir,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(appConfigProvider);
-    final cor = corBotao(Theme.of(context).colorScheme.primary);
-    final texto = corLegivelNoFundo(cor, Colors.white);
     final ingredientes = produto.ingredientes.trim();
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFEDEDED))),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: InkWell(
-              key: Key('produto-$codigoGrupo-${produto.codigo}'),
-              onTap: onAbrir,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+      child: InkWell(
+        key: Key('produto-$codigoGrupo-${produto.codigo}'),
+        onTap: onAbrir,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: FotoProduto(
+                  key: ValueKey('foto-${produto.codigo}'),
+                  codigo: produto.codigo,
+                  extensao: config.extProd,
+                  urlRede: config.urlFoto(
+                    produto.codigo,
+                    pagina: ref.watch(paginaAbertaProvider),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: FotoProduto(
-                        key: ValueKey('foto-${produto.codigo}'),
-                        codigo: produto.codigo,
-                        extensao: config.extProd,
-                        urlRede: config.urlFoto(
-                          produto.codigo,
-                          pagina: ref.watch(paginaAbertaProvider),
-                        ),
+                    Text(
+                      produto.descricao,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF222222),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            produto.descricao,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF222222),
-                              fontSize: 15,
-                            ),
-                          ),
-                          if (ingredientes.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              ingredientes,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFF6B6B6B),
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 6),
-                          Text(
-                            formatMoney(produto.preco),
-                            style: const TextStyle(
-                              color: Color(0xFF222222),
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                    if (ingredientes.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      _DescricaoDetalhada(
+                        key: ValueKey(
+                          'detalhe-$codigoGrupo-${produto.codigo}',
+                        ),
+                        texto: ingredientes,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Text(
+                      formatMoney(produto.preco),
+                      style: const TextStyle(
+                        color: Color(0xFF222222),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: Material(
-                color: cor,
-                borderRadius: bordaBotao,
-                child: InkWell(
-                  key: Key('adicionar-$codigoGrupo-${produto.codigo}'),
-                  customBorder: formatoBotao(),
-                  onTap: onAdicionar,
-                  child: Icon(Icons.add, color: texto),
+        ),
+      ),
+    );
+  }
+}
+
+class _DescricaoDetalhada extends StatefulWidget {
+  final String texto;
+
+  const _DescricaoDetalhada({super.key, required this.texto});
+
+  @override
+  State<_DescricaoDetalhada> createState() => _DescricaoDetalhadaState();
+}
+
+class _DescricaoDetalhadaState extends State<_DescricaoDetalhada> {
+  static const _estilo = TextStyle(
+    color: Color(0xFF6B6B6B),
+    fontSize: 13,
+  );
+
+  bool _aberta = false;
+
+  bool _passaDeTresLinhas(double largura) {
+    final painter = TextPainter(
+      text: TextSpan(text: widget.texto, style: _estilo),
+      maxLines: 3,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: largura);
+    return painter.didExceedMaxLines;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final corLink = Theme.of(context).colorScheme.primary;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final longa = _passaDeTresLinhas(constraints.maxWidth);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.texto,
+              maxLines: _aberta ? null : 3,
+              overflow: _aberta ? TextOverflow.visible : TextOverflow.ellipsis,
+              style: _estilo,
+            ),
+            if (longa)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => setState(() => _aberta = !_aberta),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: corLink,
+                  ),
+                  child: Text(
+                    _aberta ? 'Ver menos' : 'Ver mais',
+                    style: TextStyle(
+                      color: corLink,
+                      fontSize: 12,
+                      decoration: TextDecoration.underline,
+                      decorationColor: corLink,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
