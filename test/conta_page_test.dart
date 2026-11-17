@@ -424,6 +424,18 @@ void main() {
       expect(find.text(forma), findsOneWidget);
     }
     expect(find.text('Total consumido'), findsNothing);
+    expect(find.byKey(const Key('icone-pix')), findsOneWidget);
+    expect(find.byKey(const Key('icone-dinheiro')), findsOneWidget);
+    expect(find.byKey(const Key('icone-credito')), findsOneWidget);
+    expect(find.byKey(const Key('icone-debito')), findsOneWidget);
+    expect(find.byKey(const Key('icone-conta-clube')), findsOneWidget);
+    final pix = tester.getTopLeft(find.text('Pix'));
+    final dinheiro = tester.getTopLeft(find.text('Dinheiro'));
+    final credito = tester.getTopLeft(find.text('Crédito'));
+    final debito = tester.getTopLeft(find.text('Débito'));
+    expect(dinheiro.dx, pix.dx);
+    expect(credito.dx, pix.dx);
+    expect(debito.dx, pix.dx);
 
     await tester.tap(find.byKey(const Key('forma-pix')));
     await tester.pumpAndSettle();

@@ -98,9 +98,9 @@ class _FormasPagamentoPageState extends ConsumerState<FormasPagamentoPage> {
                       _Cartao(
                         child: _LinhaForma(
                           chave: const Key('forma-conta-clube'),
-                          icone: const _Marca(
-                            cor: Color(0xFFE53935),
-                            icon: Icons.receipt_long,
+                          icone: const _IconeForma(
+                            imagem: 'assets/images/pagamento/conta.png',
+                            chave: Key('icone-conta-clube'),
                           ),
                           titulo: formaContaClube,
                           trailing: const Icon(
@@ -133,12 +133,14 @@ class _FormasPagamentoPageState extends ConsumerState<FormasPagamentoPage> {
                         _Cartao(
                           child: _LinhaForma(
                             chave: Key(forma.chave),
-                            icone: forma.icone,
+                            icone: _IconeForma(
+                              imagem: forma.imagem,
+                              chave: Key(forma.chaveIcone),
+                            ),
                             titulo: forma.nome,
-                            trailing: const Icon(
-                              Icons.room_service_outlined,
-                              color: Color(0xFFF5A04A),
-                              size: 28,
+                            trailing: const _IconeForma(
+                              imagem: 'assets/images/pagamento/atendente.png',
+                              tamanho: 40,
                             ),
                             onTap: () => _chamarAtendente(forma.nome),
                           ),
@@ -160,35 +162,41 @@ class _FormasPagamentoPageState extends ConsumerState<FormasPagamentoPage> {
 class _FormaAtendente {
   final String nome;
   final String chave;
-  final Widget icone;
+  final String chaveIcone;
+  final String imagem;
 
-  const _FormaAtendente(this.nome, this.chave, this.icone);
+  const _FormaAtendente(
+    this.nome,
+    this.chave,
+    this.chaveIcone,
+    this.imagem,
+  );
 }
 
 const _atendente = [
   _FormaAtendente(
     'Pix',
     'forma-pix',
-    _Marca(cor: Color(0xFF32BCAD), icon: Icons.pix),
+    'icone-pix',
+    'assets/images/pagamento/pix.png',
   ),
   _FormaAtendente(
     'Dinheiro',
     'forma-dinheiro',
-    _Circulo(
-      fundo: Color(0xFFF0F0F0),
-      icon: Icons.attach_money,
-      cor: Color(0xFF8D8D8D),
-    ),
+    'icone-dinheiro',
+    'assets/images/pagamento/dinheiro.png',
   ),
   _FormaAtendente(
     'Crédito',
     'forma-credito',
-    _Marca(cor: Color(0xFF9E9E9E), icon: Icons.credit_card),
+    'icone-credito',
+    'assets/images/pagamento/cartao.png',
   ),
   _FormaAtendente(
     'Débito',
     'forma-debito',
-    _Marca(cor: Color(0xFF9E9E9E), icon: Icons.credit_card),
+    'icone-debito',
+    'assets/images/pagamento/cartao.png',
   ),
 ];
 
@@ -285,37 +293,28 @@ class _LinhaForma extends StatelessWidget {
   }
 }
 
-class _Marca extends StatelessWidget {
-  final Color cor;
-  final IconData icon;
+class _IconeForma extends StatelessWidget {
+  final String imagem;
+  final Key? chave;
+  final double tamanho;
 
-  const _Marca({required this.cor, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Icon(icon, color: cor, size: 28);
-  }
-}
-
-class _Circulo extends StatelessWidget {
-  final Color fundo;
-  final Color cor;
-  final IconData icon;
-
-  const _Circulo({
-    required this.fundo,
-    required this.cor,
-    required this.icon,
+  const _IconeForma({
+    required this.imagem,
+    this.chave,
+    this.tamanho = 32,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: fundo, shape: BoxShape.circle),
-      child: Icon(icon, color: cor, size: 22),
+    return SizedBox(
+      key: chave,
+      width: tamanho,
+      height: tamanho,
+      child: Image.asset(
+        imagem,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
+      ),
     );
   }
 }

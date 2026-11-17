@@ -88,9 +88,17 @@ void main() {
     expect(find.textContaining('4,00'), findsOneWidget);
     expect(find.text('Doces'), findsNothing);
     expect(find.byKey(const Key('adicionar-1-10')), findsNothing);
+    expect(find.byKey(const Key('qtd-itens-pagamento')), findsNothing);
 
     final nome = tester.widget<Text>(find.text('ÁGUA'));
     expect(nome.style?.fontWeight, FontWeight.w700);
+    final nomePos = tester.getTopLeft(find.text('ÁGUA'));
+    final detalhePos = tester.getTopLeft(find.text('Mineral'));
+    final precoPos = tester.getTopLeft(find.textContaining('4,00'));
+    expect(detalhePos.dx, nomePos.dx);
+    expect(detalhePos.dy, greaterThan(nomePos.dy));
+    expect(precoPos.dx, nomePos.dx);
+    expect(precoPos.dy, greaterThan(detalhePos.dy));
     final detalhe = tester.widget<Text>(find.text('Mineral'));
     expect(detalhe.style?.fontWeight, isNull);
     expect(detalhe.maxLines, 3);
@@ -106,7 +114,42 @@ void main() {
 
     expect(find.text(msgAdicionadoPedido), findsOneWidget);
     expect(find.textContaining('1 item'), findsOneWidget);
+    expect(find.byKey(const Key('qtd-itens-pagamento')), findsNothing);
     expect(find.textContaining('4,00'), findsWidgets);
+  });
+
+  testWidgets('o selo da conta soma a mesa e o pedido soma o carrinho',
+      (tester) async {
+    final api = _ApiCardapio()
+      ..mesaI = '['
+          '{"itm_quantidade":2,"itm_valor":8},'
+          '{"itm_quantidade":1,"itm_valor":5}'
+          ']';
+    await abrir(tester, api: api);
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('qtd-itens-pagamento')),
+        matching: find.text('3'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('item'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('produto-1-10')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirmar-produto')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.textContaining('1 item'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('qtd-itens-pagamento')),
+        matching: find.text('3'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('descrição longa abre com ver mais e volta com ver menos',
@@ -802,6 +845,7 @@ class _ApiCardapio implements HttpClientAdapter {
   int doces;
   bool muitosGrupos;
   String ingredientesBebida = 'Mineral';
+  String mesaI = '[]';
   bool gruposFalham = false;
   bool observacoesFalham = false;
   String observacoesCorpo = '[]';
@@ -898,7 +942,7 @@ class _ApiCardapio implements HttpClientAdapter {
           '{"codigoGrupo":2,"descricaoGrupo":"Pratos"},'
           '{"codigoGrupo":3,"descricaoGrupo":"Doces"}]';
     }
-    if (path.contains('MesaI/')) return '[]';
+    if (path.contains('MesaI/')) return mesaI;
     if (path.contains('lermesahstatus')) {
       return '{"fechaConta":"0","posicao":1,"socio":"55"}';
     }

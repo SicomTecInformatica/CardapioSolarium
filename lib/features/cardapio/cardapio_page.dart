@@ -14,6 +14,7 @@ import '../../core/theme/club_theme.dart';
 import '../../shared/models/cart_line.dart';
 import '../../shared/models/grupo.dart';
 import '../../shared/models/produto.dart';
+import '../conta/conta_regras.dart';
 import 'cardapio_cache.dart';
 import 'cardapio_regras.dart';
 import 'foto_produto.dart';
@@ -40,6 +41,7 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
   bool _avisoExpirado = false;
   bool _marcacaoAgendada = false;
   bool _rolandoParaChip = false;
+  int _quantidadeConta = 0;
 
   static const _alturaComChips = 124.0;
   static const _alturaSemChips = 72.0;
@@ -52,6 +54,7 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
     });
     _scroll.addListener(_aoRolar);
     Future.microtask(_carregar);
+    Future.microtask(_lerQuantidadeConta);
   }
 
   @override
@@ -67,6 +70,35 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
       !_buscando && visiveis.isNotEmpty;
 
   double _alturaDe(bool chips) => chips ? _alturaComChips : _alturaSemChips;
+
+  Future<void> _lerQuantidadeConta() async {
+    if (sessaoAtualExpirada(ref)) return;
+    final session = ref.read(appSessionProvider);
+    try {
+      final resposta = await ref.read(cardapioApiProvider).mesaI(
+            session.mesa,
+            session.local,
+            session.posicao,
+            session.titulo,
+          );
+      if (!mounted) return;
+      final itens = lerItensMesa(resposta.corpoBruto, resposta.dados);
+      final total = somarItensConta(itens.itens).quantidade.round();
+      setState(() => _quantidadeConta = total);
+    } on CardapioApiException {
+      if (!mounted) return;
+    }
+  }
+
+  Future<void> _abrirConta() async {
+    await context.push('/conta');
+    if (mounted) await _lerQuantidadeConta();
+  }
+
+  Future<void> _abrirPedido() async {
+    await context.push('/pedido');
+    if (mounted) await _lerQuantidadeConta();
+  }
 
   Future<void> _carregar({bool forcar = false}) async {
     final session = ref.read(appSessionProvider);
@@ -337,7 +369,11 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
                 children: [
                   Column(
                     children: [
-                      _BarraTopo(session: session),
+                      _BarraTopo(
+                        session: session,
+                        quantidadeConta: _quantidadeConta,
+                        onAbrirConta: _abrirConta,
+                      ),
                       Expanded(
                         child:
                             _corpo(session, visiveis, resultados, mostrarChips),
@@ -345,7 +381,10 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
                     ],
                   ),
                   if (session.carrinho.isNotEmpty)
-                    _BarraPedido(carrinho: session.carrinho),
+                    _BarraPedido(
+                      carrinho: session.carrinho,
+                      onAbrir: _abrirPedido,
+                    ),
                 ],
               ),
             ),
@@ -503,8 +542,14 @@ class _CardapioPageState extends ConsumerState<CardapioPage> {
 
 class _BarraTopo extends StatelessWidget {
   final AppSessionState session;
+  final int quantidadeConta;
+  final VoidCallback onAbrirConta;
 
-  const _BarraTopo({required this.session});
+  const _BarraTopo({
+    required this.session,
+    required this.quantidadeConta,
+    required this.onAbrirConta,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -559,13 +604,59 @@ class _BarraTopo extends StatelessWidget {
               IconButton(
                 key: const Key('abrir-conta'),
                 tooltip: 'Conta',
-                onPressed: () => context.push('/conta'),
-                icon: const Icon(Icons.receipt_long_outlined),
+                onPressed: onAbrirConta,
                 color: const Color(0xFF1A1A1A),
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(Icons.receipt_long_outlined, size: 26),
+                    if (quantidadeConta > 0)
+                      Positioned(
+                        left: -2,
+                        bottom: -4,
+                        child: _SeloItens(quantidade: quantidadeConta),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SeloItens extends StatelessWidget {
+  final int quantidade;
+
+  const _SeloItens({required this.quantidade});
+
+  @override
+  Widget build(BuildContext context) {
+    final rotulo = quantidade > 99 ? '99+' : '$quantidade';
+    return Container(
+      key: const Key('qtd-itens-pagamento'),
+      width: rotulo.length > 1 ? null : 18,
+      height: 18,
+      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+      padding: EdgeInsets.symmetric(horizontal: rotulo.length > 1 ? 4 : 0),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE53935),
+        shape: rotulo.length > 1 ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: rotulo.length > 1 ? BorderRadius.circular(9) : null,
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      child: Text(
+        rotulo,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          height: 1,
         ),
       ),
     );
@@ -800,7 +891,7 @@ class _CardProduto extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
@@ -827,6 +918,7 @@ class _CardProduto extends ConsumerWidget {
                         color: Color(0xFF222222),
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
+                        height: 1.25,
                       ),
                     ),
                     if (ingredientes.isNotEmpty) ...[
@@ -838,13 +930,14 @@ class _CardProduto extends ConsumerWidget {
                         texto: ingredientes,
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 6),
                     Text(
                       formatMoney(produto.preco),
                       style: const TextStyle(
                         color: Color(0xFF222222),
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        height: 1.25,
                       ),
                     ),
                   ],
@@ -892,30 +985,28 @@ class _DescricaoDetalhadaState extends State<_DescricaoDetalhada> {
       builder: (context, constraints) {
         final longa = _passaDeTresLinhas(constraints.maxWidth);
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               widget.texto,
+              textAlign: TextAlign.start,
               maxLines: _aberta ? null : 3,
               overflow: _aberta ? TextOverflow.visible : TextOverflow.ellipsis,
               style: _estilo,
             ),
             if (longa)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: () => setState(() => _aberta = !_aberta),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    foregroundColor: corLink,
-                  ),
+              GestureDetector(
+                onTap: () => setState(() => _aberta = !_aberta),
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2, bottom: 2),
                   child: Text(
                     _aberta ? 'Ver menos' : 'Ver mais',
+                    textAlign: TextAlign.start,
                     style: TextStyle(
                       color: corLink,
                       fontSize: 12,
+                      height: 1.2,
                       decoration: TextDecoration.underline,
                       decorationColor: corLink,
                     ),
@@ -931,8 +1022,9 @@ class _DescricaoDetalhadaState extends State<_DescricaoDetalhada> {
 
 class _BarraPedido extends StatelessWidget {
   final List<CartLine> carrinho;
+  final VoidCallback onAbrir;
 
-  const _BarraPedido({required this.carrinho});
+  const _BarraPedido({required this.carrinho, required this.onAbrir});
 
   @override
   Widget build(BuildContext context) {
@@ -952,7 +1044,7 @@ class _BarraPedido extends StatelessWidget {
         child: InkWell(
           key: const Key('ver-pedido'),
           borderRadius: bordaBotao,
-          onTap: () => context.push('/pedido'),
+          onTap: onAbrir,
           child: SizedBox(
             height: 52,
             child: Center(
